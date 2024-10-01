@@ -1,11 +1,13 @@
-global:
-  checkNewVersion: true
-  sendAnonymousUsage: true
+image:
+  name: traefik
+  tag: v2.2
 
-log:
-  level: DEBUG
-accessLog:
-  filePath: /var/log/traefik/access.log
+logs:
+  general:
+    level: DEBUG
+  access:
+    enabled: true
+    filePath: /var/log/traefik/access.log
 
 api:
   insecure: false
@@ -13,7 +15,7 @@ api:
 
 entryPoints:
   web:
-    address: :80
+    address: ":80"
     http:
       redirections:
         entryPoint:
@@ -21,7 +23,7 @@ entryPoints:
           scheme: https
           permanent: true
   websecure:
-    address: :443
+    address: ":443"
     forwardedHeaders:
       trustedIPs: 173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22,2400:cb00::/32,2606:4700::/32,2803:f800::/32,2405:b500::/32,2405:8100::/32,2a06:98c0::/29,2c0f:f248::/32
 
@@ -37,3 +39,39 @@ certificatesresolvers:
       dnschallenge:
         provider: cloudflare
       storage: /letsencrypt/acme.json
+
+env:
+  - name: CF_API_EMAIL
+    value: "${CLOUDFLARE_API_EMAIL}"
+  - name: CF_API_KEY
+    value: "${CLOUDFLARE_API_KEY}"
+
+volumes:
+  - name: docker-sock
+    mountPath: /var/run/docker.sock
+
+  - name: letsencrypt
+    mountPath: /letsencrypt
+
+  - name: traefik-logs
+    mountPath: /var/log/traefik
+
+ingressRoute:
+  enabled: true
+  dashboard:
+    annotations: {}
+    entryPoints: ["websecure"]
+    middlewares:
+      - name: traefik-dashboard-auth
+    routes:
+      - match: Host(`traefik.${HDCI_DOMAIN}`)
+        kind: Rule
+        services:
+          - name: api@internal
+
+middlewares:
+  traefik-dashboard-auth:
+    basicAuth:
+      users:
+        - "aaa:$$2y$$05$$mdhjWHLFZhLhtpPAwJO42uzHhfFIkVWNnXXq1czH6B71ikytjYRDC" #aaa:aaa
+      removeHeader: true
